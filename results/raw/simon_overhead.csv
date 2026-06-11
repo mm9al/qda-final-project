@@ -1,0 +1,3 @@
+circuit,qubits,depth,cx_count,h_count
+baseline,6,4,3,6
+asserted_xor,7,6,5,6
