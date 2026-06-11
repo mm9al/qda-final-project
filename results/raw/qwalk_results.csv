@@ -1,0 +1,6 @@
+checkpoint,label,relative_position,num_vanishing_states,sparsity,naive_oracle_terms,overhead_ratio_proxy,balanced_score
+8,after_walk_step_1,0.2,6,0.75,6,0.15,0.7425
+16,after_walk_step_2,0.4,4,0.5,4,0.1,0.495
+24,after_walk_step_3,0.6,6,0.75,6,0.15,0.7425
+32,after_walk_step_4,0.8,7,0.875,7,0.175,0.86625
+40,after_walk_step_5,1.0,6,0.75,6,0.15,0.7425
