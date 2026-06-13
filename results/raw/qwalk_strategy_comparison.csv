@@ -1,0 +1,11 @@
+checkpoint,label,relative_position,oracle_method,total_states,num_vanishing_states,coverage,sparsity,balanced_score,oracle_depth,oracle_gate_count,oracle_cx_count,asserted_depth,asserted_cx_count,asserted_gate_count,asserted_depth_overhead,asserted_cx_overhead,asserted_gate_overhead,normalized_cost,benefit_cost_score
+8,after_walk_step_1,0.2,minterm,8,6,0.75,0.75,0.7425,161,186,84,276,144,341,161,84,186,1.3333333333333333,0.5625
+8,after_walk_step_1,0.2,simplified_boolean,8,6,0.75,0.75,0.7425,20,29,12,135,72,184,20,12,29,0.18700327255726976,4.010625
+16,after_walk_step_2,0.4,minterm,8,4,0.5,0.5,0.495,109,124,56,224,116,279,109,56,124,0.8937198067632851,0.5594594594594594
+16,after_walk_step_2,0.4,simplified_boolean,8,4,0.5,0.5,0.495,1,1,1,116,61,156,1,1,1,0.01060464391460184,47.14915503306391
+24,after_walk_step_3,0.6,minterm,8,6,0.75,0.75,0.7425,163,188,84,278,144,343,163,84,188,1.3434315100514258,0.5582718541202673
+24,after_walk_step_3,0.6,simplified_boolean,8,6,0.75,0.75,0.7425,12,16,6,127,66,171,12,6,16,0.10252454417952313,7.315321477428181
+32,after_walk_step_4,0.8,minterm,8,7,0.875,0.875,0.86625,189,217,98,304,158,372,189,98,217,1.558937198067633,0.5612798264642082
+32,after_walk_step_4,0.8,simplified_boolean,8,7,0.875,0.875,0.86625,50,58,27,165,87,213,50,27,58,0.41965871902758295,2.085027571993539
+40,after_walk_step_5,1.0,minterm,8,6,0.75,0.75,0.7425,162,188,84,277,144,343,162,84,188,1.3405329593267883,0.5594789704959197
+40,after_walk_step_5,1.0,simplified_boolean,8,6,0.75,0.75,0.7425,21,30,13,136,73,185,21,13,30,0.1976079164718716,3.7953945033713183
