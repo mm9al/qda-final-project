@@ -12,6 +12,19 @@ class StateAnalysis:
     sparsity: float
 
 
+def basis_index_to_qubit_order_state(index: int, num_qubits: int) -> str:
+    """Return a basis-state label in q[0], q[1], ... order."""
+    if index < 0:
+        raise ValueError("basis index must be non-negative")
+    if index >= 2**num_qubits:
+        raise ValueError("basis index does not fit in num_qubits")
+
+    return "".join(
+        "1" if index & (1 << qubit) else "0"
+        for qubit in range(num_qubits)
+    )
+
+
 def append_instruction_copy(
     target: QuantumCircuit,
     source: QuantumCircuit,
@@ -75,7 +88,10 @@ def analyze_statevector(
     vanishing_states: list[str] = []
 
     for index, amplitude in enumerate(statevector.data):
-        state = format(index, f"0{num_qubits}b")
+        state = basis_index_to_qubit_order_state(
+            index=index,
+            num_qubits=num_qubits,
+        )
 
         if np.abs(amplitude) < tolerance:
             vanishing_states.append(state)
