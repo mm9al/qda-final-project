@@ -1,44 +1,5 @@
 # VanQiRA-Style Simon and Quantum Walk Experiments
 
-```mermaid
-graph TD
-    %% Define styling
-    classDef core fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
-    classDef script fill:#f3e5f5,stroke:#4a148c,stroke-width:1px,color:#000
-    classDef output fill:#e8f5e9,stroke:#1b5e20,stroke-width:1px,color:#000
-
-    %% Main Title
-    Title["<b>VanQiRA-Style Quantum Runtime Assertion Prototype</b>"]:::core
-
-    subgraph Targets ["🎯 Active Targets"]
-        direction LR
-        Simon["<b>Simon's Algorithm</b><br>Measurement-level<br>Parity Validation"]
-        QWalk["<b>Coined Quantum Walk</b><br>Checkpoint-based<br>Vanishing-State Assertion"]
-    end
-
-    Title --- Targets
-
-    subgraph Pipeline ["⚙️ Quantum-Walk Evaluation Pipeline"]
-        direction TB
-        S1(["🔍 <b>1. Checkpoint Scan</b><br>(run_checkpoint_optimization)"]):::script
-        S2(["⚖️ <b>2. Strategy Comparison</b><br>(run_qwalk_strategy_comparison)"]):::script
-        S3(["💥 <b>3. Noisy Evaluation</b><br>(run_qwalk_strategy_evaluation)"]):::script
-
-        S1 -->|Identify Candidates<br>& State Sparsity| S2
-        S2 -->|Oracle Synthesis & Cost Analysis<br>(minterm / simplified_boolean)| S3
-        S3 -->|Shared Pauli Noise Traces<br>Monte Carlo Trials| Metrics
-    end
-
-    QWalk --> Pipeline
-
-    subgraph Results ["📊 Metrics & Outputs"]
-        direction TB
-        Metrics["<b>Confusion Matrix</b><br>TP / TN / FP / FN<br>Detection Rate | Support-Level FPR"]:::output
-        CSV["<b>Generated Artifacts</b><br>CSV Reports & Plots<br>(results/raw/)"]:::output
-
-        Metrics --> CSV
-    end
-
 This repository contains a compact VanQiRA-style prototype for quantum runtime
 assertion experiments. It is organized around two active targets:
 
