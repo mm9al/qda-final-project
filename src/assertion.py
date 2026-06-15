@@ -86,6 +86,97 @@ def synthesize_minterm_oracle(
     return oracle
 
 
+def _truth_table_from_states(spec: VanishingAssertionSpec) -> list[int]:
+    n = spec.num_asserted_qubits
+    truth_table = [0] * (2**n)
+
+    for state in spec.vanishing_states:
+        if len(state) != n or any(bit not in {"0", "1"} for bit in state):
+            raise ValueError(f"invalid vanishing state: {state}")
+
+        index = 0
+        for qubit, bit in enumerate(state):
+            if bit == "1":
+                index |= 1 << qubit
+        truth_table[index] = 1
+
+    return truth_table
+
+
+def _anf_terms_from_truth_table(
+    truth_table: Sequence[int],
+    num_variables: int,
+) -> list[tuple[int, ...]]:
+    """Return exact XOR-of-products terms using a Mobius transform over GF(2)."""
+    coefficients = list(truth_table)
+
+    for variable in range(num_variables):
+        bit = 1 << variable
+        for mask in range(2**num_variables):
+            if mask & bit:
+                coefficients[mask] ^= coefficients[mask ^ bit]
+
+    terms: list[tuple[int, ...]] = []
+    for mask, coefficient in enumerate(coefficients):
+        if coefficient:
+            terms.append(
+                tuple(
+                    variable
+                    for variable in range(num_variables)
+                    if mask & (1 << variable)
+                )
+            )
+
+    return terms
+
+
+def synthesize_simplified_boolean_oracle(
+    spec: VanishingAssertionSpec,
+    name: str = "Ua_simplified_boolean",
+) -> QuantumCircuit:
+    """Synthesize Ua as an exact algebraic-normal-form ESOP oracle.
+
+    The minterm oracle toggles the assertion ancilla once per explicit
+    vanishing basis state. This version first converts the same Boolean
+    predicate into algebraic normal form over GF(2), then emits one product
+    term per ANF monomial. The result is exact for ancilla-XOR assertions and
+    can be smaller when the vanishing set has parity structure.
+    """
+
+    n = spec.num_asserted_qubits
+    target = n
+    oracle = QuantumCircuit(n + 1, name=name)
+
+    truth_table = _truth_table_from_states(spec)
+    terms = _anf_terms_from_truth_table(
+        truth_table=truth_table,
+        num_variables=n,
+    )
+
+    for term in terms:
+        if not term:
+            oracle.x(target)
+        elif len(term) == 1:
+            oracle.cx(term[0], target)
+        else:
+            oracle.mcx(list(term), target)
+
+    return oracle
+
+
+def synthesize_vanishing_oracle(
+    spec: VanishingAssertionSpec,
+    method: str,
+) -> QuantumCircuit:
+    """Build a vanishing-state assertion oracle by method name."""
+    if method == "minterm":
+        return synthesize_minterm_oracle(spec)
+    if method == "simplified_boolean":
+        return synthesize_simplified_boolean_oracle(spec)
+
+    raise ValueError(f"Unsupported oracle method: {method}")
+
+
 def insert_assertion(
     core_circuit: QuantumCircuit,
     asserted_qubits: Sequence[int],

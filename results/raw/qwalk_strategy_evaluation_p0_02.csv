@@ -1,0 +1,7 @@
+Strategy,Checkpoint,Oracle Method,Coverage,Oracle Gates,CX Overhead,TP,TN,FP,FN,Detection Rate,Support-Level FPR,Post-selected Support-Valid Rate
+max_sparsity,after_walk_step_4,simplified_boolean,0.875,58,27,439,395,118,48,0.9014373716632443,0.2300194931773879,0.891647855530474
+min_oracle_cost,after_walk_step_2,simplified_boolean,0.5,1,1,120,502,16,362,0.24896265560165975,0.03088803088803089,0.5810185185185185
+balanced_proxy,after_walk_step_4,simplified_boolean,0.875,58,27,439,395,118,48,0.9014373716632443,0.2300194931773879,0.891647855530474
+cost_benefit,after_walk_step_2,simplified_boolean,0.5,1,1,120,502,16,362,0.24896265560165975,0.03088803088803089,0.5810185185185185
+early_checkpoint,after_walk_step_1,simplified_boolean,0.75,29,12,87,492,22,399,0.17901234567901234,0.042801556420233464,0.5521885521885522
+late_checkpoint,after_walk_step_5,simplified_boolean,0.75,30,13,493,507,0,0,1.0,0.0,1.0
