@@ -27,6 +27,7 @@ from src.evaluate import (
 )
 from src.quantum_walk import build_cycle_quantum_walk
 from src.optimizer import select_best_checkpoint
+from src.optimizer import _metric_overhead
 from src.qwalk_scaling import (
     DEFAULT_POSITION_QUBITS,
     DEFAULT_STRATEGIES,
@@ -286,6 +287,13 @@ class QWalkScalingSuiteTests(unittest.TestCase):
         self.assertTrue((candidates["basis_states"] == 8).all())
         self.assertTrue((candidates["total_qubits"] == 3).all())
         self.assertTrue((candidates["status"] == "ok").all())
+        for column in (
+            "asserted_depth_overhead",
+            "asserted_cx_overhead",
+            "asserted_gate_overhead",
+        ):
+            with self.subTest(column=column):
+                self.assertTrue((candidates[column] >= 0).all())
 
     def test_scaling_winners_select_one_row_per_strategy_per_setting(self) -> None:
         candidates = scan_scaling_candidates(
@@ -302,6 +310,21 @@ class QWalkScalingSuiteTests(unittest.TestCase):
             set(DEFAULT_STRATEGIES),
         )
         self.assertEqual(len(winners), 2 * len(DEFAULT_STRATEGIES))
+        for column in (
+            "asserted_depth_overhead",
+            "asserted_cx_overhead",
+            "asserted_gate_overhead",
+        ):
+            with self.subTest(column=column):
+                self.assertTrue((winners[column] >= 0).all())
+
+    def test_metric_overhead_is_non_negative(self) -> None:
+        baseline = {"depth": 20, "cx_count": 12, "gate_count": 30}
+        asserted = {"depth": 18, "cx_count": 10, "gate_count": 40}
+
+        self.assertEqual(_metric_overhead(asserted, baseline, "depth"), 0)
+        self.assertEqual(_metric_overhead(asserted, baseline, "cx_count"), 0)
+        self.assertEqual(_metric_overhead(asserted, baseline, "gate_count"), 10)
 
     def test_pareto_frontier_excludes_dominated_candidates(self) -> None:
         frame = pd.DataFrame(

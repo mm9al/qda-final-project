@@ -20,7 +20,7 @@ from src.optimizer import (
     build_asserted_checkpoint_circuit,
     select_strategy_winners,
 )
-from src.optimizer import _gate_count, _normalized_cost
+from src.optimizer import _gate_count, _metric_overhead, _normalized_cost
 from src.quantum_walk import build_cycle_quantum_walk
 from src.utils import analyze_checkpoint
 
@@ -183,9 +183,6 @@ def scan_scaling_candidates(
         )
         circuit = quantum_walk.circuit
         baseline_metrics = _transpiled_metrics(circuit, basis_gates)
-        baseline_depth = baseline_metrics["depth"]
-        baseline_cx = baseline_metrics["cx_count"]
-        baseline_gate_count = baseline_metrics["gate_count"]
 
         for checkpoint_step, (checkpoint, label) in enumerate(
             zip(quantum_walk.checkpoints, quantum_walk.checkpoint_labels),
@@ -267,14 +264,20 @@ def scan_scaling_candidates(
                             "asserted_depth": asserted_metrics["depth"],
                             "asserted_cx_count": asserted_metrics["cx_count"],
                             "asserted_gate_count": asserted_metrics["gate_count"],
-                            "asserted_depth_overhead": (
-                                asserted_metrics["depth"] - baseline_depth
+                            "asserted_depth_overhead": _metric_overhead(
+                                asserted_metrics=asserted_metrics,
+                                baseline_metrics=baseline_metrics,
+                                metric="depth",
                             ),
-                            "asserted_cx_overhead": (
-                                asserted_metrics["cx_count"] - baseline_cx
+                            "asserted_cx_overhead": _metric_overhead(
+                                asserted_metrics=asserted_metrics,
+                                baseline_metrics=baseline_metrics,
+                                metric="cx_count",
                             ),
-                            "asserted_gate_overhead": (
-                                asserted_metrics["gate_count"] - baseline_gate_count
+                            "asserted_gate_overhead": _metric_overhead(
+                                asserted_metrics=asserted_metrics,
+                                baseline_metrics=baseline_metrics,
+                                metric="gate_count",
                             ),
                             "normalized_cost": normalized_cost,
                             "benefit_cost_score": coverage

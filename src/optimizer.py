@@ -202,6 +202,16 @@ def _normalized_cost(
     ) / 3.0
 
 
+def _metric_overhead(
+    asserted_metrics: dict[str, int],
+    baseline_metrics: dict[str, int],
+    metric: str,
+) -> int:
+    """Report added cost as a non-negative overhead."""
+
+    return max(asserted_metrics[metric] - baseline_metrics[metric], 0)
+
+
 def scan_checkpoint_strategy_comparison(
     circuit: QuantumCircuit,
     checkpoints: list[int],
@@ -272,9 +282,21 @@ def scan_checkpoint_strategy_comparison(
                 basis_gates=basis_gates,
             )
 
-            depth_overhead = asserted_metrics["depth"] - baseline_depth
-            cx_overhead = asserted_metrics["cx_count"] - baseline_cx
-            gate_overhead = asserted_metrics["gate_count"] - baseline_gate_count
+            depth_overhead = _metric_overhead(
+                asserted_metrics=asserted_metrics,
+                baseline_metrics=baseline_metrics,
+                metric="depth",
+            )
+            cx_overhead = _metric_overhead(
+                asserted_metrics=asserted_metrics,
+                baseline_metrics=baseline_metrics,
+                metric="cx_count",
+            )
+            gate_overhead = _metric_overhead(
+                asserted_metrics=asserted_metrics,
+                baseline_metrics=baseline_metrics,
+                metric="gate_count",
+            )
             normalized_cost = _normalized_cost(
                 oracle_metrics=oracle_metrics,
                 baseline_metrics=baseline_metrics,

@@ -112,6 +112,7 @@ def write_cost_coverage_plot(candidates: pd.DataFrame) -> Path:
     ax.set_xlabel("Coverage / vanishing-state ratio")
     ax.set_ylabel("Added CX gates")
     ax.set_title("Oracle cost versus assertion coverage")
+    ax.set_ylim(bottom=0)
     ax.grid(True, alpha=0.3)
     ax.legend(loc="best")
     fig.tight_layout()
@@ -157,6 +158,19 @@ def write_strategy_ranking_plot(
             ("avg_added_cx", "Average added CX"),
         ]
 
+    label_map = {
+        "balanced_proxy": "balanced",
+        "cost_benefit": "cost/benefit",
+        "early_checkpoint": "early",
+        "late_checkpoint": "late",
+        "max_sparsity": "max sparsity",
+        "min_oracle_cost": "min oracle",
+    }
+    summary = summary.copy()
+    summary["strategy_label"] = summary["strategy"].map(label_map).fillna(
+        summary["strategy"]
+    )
+
     fig, axes = plt.subplots(
         1,
         len(metrics),
@@ -164,12 +178,19 @@ def write_strategy_ranking_plot(
         squeeze=False,
     )
     for axis, (column, title) in zip(axes[0], metrics):
-        axis.bar(summary["strategy"], summary[column], color="#2563eb", alpha=0.82)
+        axis.bar(
+            summary["strategy_label"],
+            summary[column],
+            color="#2563eb",
+            alpha=0.82,
+        )
         axis.set_title(title)
-        axis.tick_params(axis="x", labelrotation=35)
+        axis.tick_params(axis="x", labelrotation=25)
         axis.grid(True, axis="y", alpha=0.25)
         if column != "avg_added_cx":
             axis.set_ylim(0, 1.02)
+        else:
+            axis.set_ylim(bottom=0)
 
     fig.suptitle("Checkpoint-selection strategy ranking across scales")
     fig.tight_layout()
