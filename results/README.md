@@ -8,8 +8,6 @@ not used by the current workflow live under `archive/results/`.
 Generated cache directories such as `results/.matplotlib/` and
 `results/.cache/` are ignored and are not project results.
 
-## 中文簡介
-
 這個資料夾是實驗輸出的索引：
 
 - `results/raw/`：正式主報告使用的 CSV 表格。
@@ -44,7 +42,7 @@ raw/qwalk_scaling_candidates.csv
 raw/qwalk_scaling_strategy_winners.csv
 ```
 
-中文提示：比較不同 checkpoint 時，是在同一個 circuit setting 下改 assertion
+比較不同 checkpoint 時，是在同一個 circuit setting 下改 assertion
 插入點；比較不同 `position_qubits` 或 `steps` 時，是換了 quantum walk 問題
 規模。`qwalk_scaling_candidates.csv` 的每一列代表一個
 `(position_qubits, steps, checkpoint, oracle_method)` candidate；
@@ -103,7 +101,7 @@ Common columns used across the result CSVs:
 | `Support-Level FPR` | In noisy evaluation, the false-positive rate against outcomes that still land in the ideal final support. Lower values mean fewer support-valid outcomes are rejected. |
 | `Post-selected Support-Valid Rate` | Fraction of accepted outputs that remain in the ideal final support after assertion filtering. Higher values mean cleaner accepted results. |
 
-中文簡要解讀：`coverage` 代表 assertion 能檢查到多少 vanishing-state 區域；
+`coverage` 代表 assertion 能檢查到多少 vanishing-state 區域；
 `asserted_cx_overhead` 和 `normalized_cost` 代表成本；`Detection Rate` 代表錯誤
 偵測能力；`Support-Level FPR` 代表誤報程度；`Post-selected Support-Valid Rate`
 代表 assertion 篩選後留下的結果品質。
