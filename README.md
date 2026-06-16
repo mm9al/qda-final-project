@@ -13,8 +13,6 @@ evaluates those strategies under shared Pauli-noise traces. This is not the
 full BDD-based VanQiRA framework; it is a small project artifact organized for
 repeatable experiments and report-ready outputs.
 
-## 中文簡介
-
 本專案是一個小型、可重現的量子執行期 assertion 實驗原型，主要用來比較
 Simon 演算法與 coined quantum walk 在加入 assertion 後的效果與成本。
 
@@ -100,7 +98,7 @@ python3 -m experiments.run_qwalk_strategy_evaluation \
 The canonical workflow writes formal report outputs to `results/raw/` and
 figures to `results/`.
 
-## Quantum Walk Experiment Conditions / 實驗條件
+## Quantum Walk Experiment Conditions 
 
 The formal single-setting quantum-walk experiment uses a fixed coined quantum
 walk on a cycle. This is the setting used by `qwalk_results.csv`,
@@ -141,13 +139,13 @@ main setting:
 - `qwalk_scaling_strategy_winners.csv` selects six strategies for every
   `(position_qubits, steps)` setting, not six strategies for the whole suite.
 
-中文簡要說明：固定主實驗是在同一個 quantum walk circuit
+固定主實驗是在同一個 quantum walk circuit
 (`position_qubits=2`, `steps=5`) 裡改 checkpoint 和 oracle method；scaling
 suite 則會改 quantum walk 的問題規模，也就是不同 `position_qubits` 和
 `steps`。因此比較 checkpoint 時，是同一規模下 assertion 插入點不同；比較
 position qubits 或 steps 時，則是不同 circuit size 的 scaling 分析。
 
-## How to Read the Results / 結果怎麼看
+## How to Read the Results 
 
 - Simon results: start with `baseline_success_rate`,
   `filtered_success_rate`, `pass_rate`, and `error_report_rate` in
