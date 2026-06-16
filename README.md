@@ -1,22 +1,70 @@
-# VanQiRA-Style Simon and Quantum Walk Experiments
+# VanQiRA-Style Simon and Quantum-Walk Experiments
 
-This repository contains a compact VanQiRA-style prototype for quantum runtime
-assertion experiments. It is organized around two active targets:
+This repository is a compact reproducibility prototype for quantum runtime
+assertion experiments. It focuses on two active targets:
 
 - Simon's algorithm with measurement-level parity validation.
 - A coined quantum walk with checkpoint-based vanishing-state assertion
   oracles.
 
-The current quantum-walk workflow scans assertion checkpoints, synthesizes
-assertion oracles, compares static circuit costs, selects representative
-strategies, and evaluates those strategies under shared Pauli-noise traces.
+The quantum-walk workflow scans assertion checkpoints, synthesizes assertion
+oracles, compares static circuit costs, selects representative strategies, and
+evaluates those strategies under shared Pauli-noise traces. This is not the
+full BDD-based VanQiRA framework; it is a small project artifact organized for
+repeatable experiments and report-ready outputs.
 
-This is a small reproducibility prototype, not the full BDD-based VanQiRA
-framework.
+## 中文簡介
 
----
+本專案是一個小型、可重現的量子執行期 assertion 實驗原型，主要用來比較
+Simon 演算法與 coined quantum walk 在加入 assertion 後的效果與成本。
 
-## Quick Start
+目前正式流程會先執行測試，再產生報告用結果。主要輸出放在
+`results/raw/` 與 `results/`；sanity check、noise sweep、oracle-noise
+extension 等輔助實驗結果則放在 `results/auxiliary/raw/`，不視為主報告表格。
+
+若只想重跑專案，照著下方 **Setup** 和 **Canonical Reproduction Workflow**
+執行即可。各結果檔案的用途請看 `results/README.md`。
+
+## Quick Start / 快速重跑
+
+最短流程是先建立 Python 環境，跑測試確認程式狀態，再依序產生正式結果：
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+python3 -m unittest discover
+python3 -m experiments.run_simon
+python3 -m experiments.run_checkpoint_optimization
+python3 -m experiments.run_qwalk_strategy_comparison
+python3 -m experiments.run_qwalk_scaling
+python3 -m experiments.run_qwalk_strategy_evaluation \
+  --error-probability 0.01 \
+  --num-trials 1000 \
+  --seed 2026
+```
+
+上述流程會把正式 CSV 寫到 `results/raw/`，把正式圖檔寫到 `results/`。
+最後可用 `results/README.md` 對照每個檔案的用途與主要欄位。
+
+## Project Layout
+
+```text
+QDA-FINAL-PROJECT/
+├── archive/       legacy scripts and old outputs kept for reference
+├── experiments/   active command-line experiment entrypoints
+├── report/        notes and write-up material
+├── results/       formal figures, CSV outputs, and auxiliary runs
+├── src/           circuit builders, assertion synthesis, evaluation utilities
+├── tests/         unit tests
+├── help.py        command-line workflow summary
+└── requirements.txt
+```
+
+Detailed output tiers are documented in `results/README.md`.
+
+## Setup
 
 Use `python3`; the local environment does not provide `python`.
 
@@ -26,24 +74,141 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Run the active workflow:
+## Canonical Reproduction Workflow
+
+Run tests before generating the formal outputs. The commands should be run from
+the project root in this order:
+
+| Step | Command | Effect / 指令效果 | Main outputs |
+| --- | --- | --- | --- |
+| 1 | `python3 -m unittest discover` | Runs unit tests for core circuit, assertion, and strategy-selection logic. 先確認核心邏輯與策略選擇測試通過。 | No result files; pass/fail only. |
+| 2 | `python3 -m experiments.run_simon` | Runs Simon baseline and asserted circuits across several noise levels. 產生 Simon 成功率、pass rate、error-report rate 與 circuit overhead。 | `results/raw/simon_results.csv`, `results/raw/simon_overhead.csv` |
+| 3 | `python3 -m experiments.run_checkpoint_optimization` | Scans quantum-walk checkpoints and computes sparsity/proxy scores. 掃描每個 checkpoint 的 vanishing-state coverage。 | `results/raw/qwalk_results.csv` |
+| 4 | `python3 -m experiments.run_qwalk_strategy_comparison` | Compares checkpoint/oracle choices, selects six representative strategies, and plots cost versus coverage. 比較成本效益並選出正式 noisy evaluation 使用的 6 種策略。 | `results/raw/qwalk_strategy_comparison.csv`, `results/raw/qwalk_strategy_winners.csv`, `results/qwalk_strategy_comparison.png` |
+| 5 | `python3 -m experiments.run_qwalk_scaling` | Runs the parameterized scaling suite across position-qubit sizes and walk steps. 產生不同規模下的 candidate、winner 與 scaling 圖。 | `results/raw/qwalk_benchmark_suite.csv`, `results/raw/qwalk_scaling_candidates.csv`, `results/raw/qwalk_scaling_strategy_winners.csv`, scaling figures in `results/` |
+| 6 | `python3 -m experiments.run_qwalk_strategy_evaluation --error-probability 0.01 --num-trials 1000 --seed 2026` | Evaluates selected quantum-walk strategies under shared Pauli-noise traces. 用相同 noise traces 做正式 noisy Monte Carlo 評估。 | `results/raw/qwalk_strategy_evaluation_p0_01.csv` |
+
+The full command for step 6 is:
 
 ```bash
-python3 -m experiments.run_simon
-python3 -m experiments.run_checkpoint_optimization
-python3 -m experiments.run_qwalk_strategy_comparison
 python3 -m experiments.run_qwalk_strategy_evaluation \
   --error-probability 0.01 \
-  --num-trials 1000
+  --num-trials 1000 \
+  --seed 2026
+```
+
+The canonical workflow writes formal report outputs to `results/raw/` and
+figures to `results/`.
+
+## How to Read the Results / 結果怎麼看
+
+- Simon results: start with `baseline_success_rate`,
+  `filtered_success_rate`, `pass_rate`, and `error_report_rate` in
+  `results/raw/simon_results.csv`. These show how often the baseline succeeds,
+  how assertion post-selection changes the accepted success rate, and how often
+  the assertion reports an error.
+- Quantum-walk strategy comparison: use `coverage`, `asserted_cx_overhead`,
+  `normalized_cost`, and `benefit_cost_score` in
+  `results/raw/qwalk_strategy_comparison.csv` and
+  `results/raw/qwalk_strategy_winners.csv`. Higher coverage means more
+  vanishing states are checked; lower CX overhead and normalized cost mean the
+  assertion is cheaper.
+- Noisy quantum-walk evaluation: use `Detection Rate`, `Support-Level FPR`, and
+  `Post-selected Support-Valid Rate` in
+  `results/raw/qwalk_strategy_evaluation_p0_01.csv`. These summarize how well a
+  selected assertion catches injected errors, how often it rejects support-valid
+  outcomes, and how clean the accepted outputs are.
+- Scaling suite: use the three scaling CSVs and figures to compare behavior as
+  position qubits and walk steps grow. The plots summarize vanishing-state
+  ratio by checkpoint, oracle cost versus coverage, and strategy ranking across
+  scales.
+
+Simon 表格主要看 assertion 是否提高通過後的成功率，以及錯誤回報
+比例是否合理；quantum walk 表格主要看 assertion coverage 與額外 CX 成本之間的
+取捨；noisy evaluation 表格主要看偵測率、誤報率與 post-selected 結果品質；
+scaling suite 則用來說明這些策略在不同 problem size 下是否仍有一致趨勢。
+
+## Formal Outputs
+
+Main report CSVs:
+
+```text
+results/raw/simon_results.csv
+results/raw/simon_overhead.csv
+results/raw/qwalk_results.csv
+results/raw/qwalk_strategy_comparison.csv
+results/raw/qwalk_strategy_winners.csv
+results/raw/qwalk_strategy_evaluation_p0_01.csv
+```
+
+Static scaling-suite CSVs:
+
+```text
+results/raw/qwalk_benchmark_suite.csv
+results/raw/qwalk_scaling_candidates.csv
+results/raw/qwalk_scaling_strategy_winners.csv
+```
+
+Formal figures:
+
+```text
+results/qwalk_strategy_comparison.png
+results/qwalk_vanishing_ratio_by_checkpoint.png
+results/qwalk_oracle_cost_vs_coverage.png
+results/qwalk_strategy_ranking_across_scales.png
+```
+
+## Optional Auxiliary Runs
+
+These commands are useful for sanity checks and extensions, but their CSVs are
+not main report tables.
+
+以下指令只用來做 sanity check、noise probability sweep 或延伸實驗，
+不屬於正式主報告表格。若這些指令把 CSV 寫到 `results/raw/`，請在完成後移到
+`results/auxiliary/raw/`，讓 `results/raw/` 保持只放正式輸出。
+
+Noiseless sanity check:
+
+```bash
+python3 -m experiments.run_qwalk_strategy_evaluation \
+  --error-probability 0 \
+  --num-trials 100 \
+  --seed 2026
+```
+
+Oracle-noise extension:
+
+```bash
 python3 -m experiments.run_qwalk_strategy_evaluation \
   --include-oracle-noise \
   --error-probability 0.01 \
   --num-trials 1000 \
   --seed 2026
-python3 -m unittest discover
 ```
 
-The root helper prints the same workflow and output index:
+Representative noisy scaling smoke test:
+
+```bash
+python3 -m experiments.run_qwalk_scaling_evaluation \
+  --error-probability 0.01 \
+  --num-trials 100 \
+  --seed 2026
+```
+
+After running auxiliary commands, move their CSV outputs from `results/raw/` to
+`results/auxiliary/raw/`. Auxiliary outputs include:
+
+```text
+qwalk_strategy_evaluation_p0_0.csv
+qwalk_strategy_evaluation_p0_005.csv
+qwalk_strategy_evaluation_p0_02.csv
+qwalk_strategy_evaluation_oracle_noise_p0_01.csv
+qwalk_scaling_strategy_evaluation_*.csv
+```
+
+## Help Commands
+
+The root helper prints the workflow and output index:
 
 ```bash
 python3 help.py
@@ -51,267 +216,21 @@ python3 help.py --outputs
 python3 help.py --archive
 ```
 
----
+## Verification
 
-## Project Layout
-
-```text
-QDA-FINAL-PROJECT/
-├── archive/       legacy scripts and old outputs kept for reference
-├── experiments/   active command-line experiment entrypoints
-├── report/        notes and write-up material
-├── results/       active generated figures and CSV outputs
-├── src/           circuit builders, assertion synthesis, evaluation utilities
-├── tests/         unit tests
-├── help.py
-└── requirements.txt
-```
-
-The active result index is in `results/README.md`.
-
----
-
-## Active Experiments
-
-### 1. Simon Baseline
-
-```bash
-python3 -m experiments.run_simon
-```
-
-Outputs:
-
-```text
-results/raw/simon_results.csv
-results/raw/simon_overhead.csv
-```
-
-The Simon experiment compares baseline and asserted circuits under depolarizing
-noise. The asserted circuit uses a parity-style validation layer and reports
-pass/error rates plus filtered and unfiltered success rates.
-
-### 2. Quantum-Walk Checkpoint Scan
-
-```bash
-python3 -m experiments.run_checkpoint_optimization
-```
-
-Output:
-
-```text
-results/raw/qwalk_results.csv
-```
-
-This scan reports candidate checkpoint positions, vanishing-state counts,
-state sparsity, a naive oracle-size proxy, and a simple balanced score. It is a
-lightweight inspection pass; the later strategy comparison uses transpiled
-oracle costs.
-
-### 3. Quantum-Walk Strategy Comparison
-
-```bash
-python3 -m experiments.run_qwalk_strategy_comparison
-```
-
-Outputs:
-
-```text
-results/raw/qwalk_strategy_comparison.csv
-results/raw/qwalk_strategy_winners.csv
-results/qwalk_strategy_comparison.png
-```
-
-For every candidate checkpoint, the workflow extracts ideal vanishing states,
-synthesizes assertion oracles, inserts the oracle into the quantum-walk
-circuit, transpiles to a shared basis, and records depth, gate, and CX
-overhead.
-
-Oracle synthesis methods:
-
-- `minterm`: one explicit matching condition per monitored vanishing state.
-- `simplified_boolean`: simplified Boolean assertion function before circuit
-  synthesis.
-
-Checkpoint-selection strategies:
-
-- `max_sparsity`: highest checkpoint sparsity.
-- `min_oracle_cost`: lowest synthesized oracle gate count.
-- `balanced_proxy`: highest sparsity-versus-proxy score.
-- `cost_benefit`: highest coverage-versus-normalized-cost score.
-- `early_checkpoint`: earliest assertable checkpoint.
-- `late_checkpoint`: latest assertable checkpoint, used as an end-of-circuit
-  support-filtering baseline.
-
-Oracle methods describe how an assertion is implemented. Strategies describe
-which checkpoint and oracle candidate are selected for evaluation.
-
-### 4. Quantum-Walk Noisy Evaluation
-
-Primary evaluation:
-
-```bash
-python3 -m experiments.run_qwalk_strategy_evaluation \
-  --error-probability 0.01 \
-  --num-trials 1000
-```
-
-Output:
-
-```text
-results/raw/qwalk_strategy_evaluation_p0_01.csv
-```
-
-Optional extension with noise applied to assertion-oracle gates:
-
-```bash
-python3 -m experiments.run_qwalk_strategy_evaluation \
-  --include-oracle-noise \
-  --error-probability 0.01 \
-  --num-trials 1000 \
-  --seed 2026
-```
-
-Output:
-
-```text
-results/raw/qwalk_strategy_evaluation_oracle_noise_p0_01.csv
-```
-
-The evaluator reuses the same sampled Pauli traces for all six strategies so
-that strategy comparisons are not dominated by sampling variation. Parameterized
-runs write probability-tagged files, for example
-`qwalk_strategy_evaluation_p0_005.csv` or
-`qwalk_strategy_evaluation_p0_02.csv`.
-
-For a p = 0 sanity check:
-
-```bash
-python3 -m experiments.run_qwalk_strategy_evaluation \
-  --error-probability 0 \
-  --num-trials 100
-```
-
----
-
-## Current Result Snapshot
-
-Current quantum-walk configuration:
-
-```text
-Position qubits:       2
-Walk steps:            5
-Strategies evaluated:  6
-Primary noise:         Pauli X/Y/Z after original quantum-walk gates
-Primary trials:        1000 shared traces
-Primary p:             0.01
-```
-
-Static comparison highlights:
-
-- `cost_benefit` selects `after_walk_step_2` with `simplified_boolean`.
-- That candidate monitors 50.0% of basis states with 1 oracle gate and 1 added
-  CX gate after transpilation.
-- `max_sparsity` and `balanced_proxy` select `after_walk_step_4`, monitoring
-  87.5% of basis states at higher oracle cost.
-- `late_checkpoint` is a support-filtering baseline. It can score well at the
-  final-support proxy but does not provide early-abort benefit.
-
-Primary p = 0.01 noisy-evaluation highlights:
-
-| Strategy | Checkpoint | Detection Rate | Support FPR | Post-selected Valid Rate |
-| --- | --- | ---: | ---: | ---: |
-| `max_sparsity` | `after_walk_step_4` | 0.8489 | 0.1118 | 0.9287 |
-| `min_oracle_cost` | `after_walk_step_2` | 0.2115 | 0.0029 | 0.7361 |
-| `balanced_proxy` | `after_walk_step_4` | 0.8489 | 0.1118 | 0.9287 |
-| `cost_benefit` | `after_walk_step_2` | 0.2115 | 0.0029 | 0.7361 |
-| `early_checkpoint` | `after_walk_step_1` | 0.1891 | 0.0087 | 0.7294 |
-| `late_checkpoint` | `after_walk_step_5` | 1.0000 | 0.0000 | 1.0000 |
-
-The late-checkpoint row should be described as an end-of-circuit support filter,
-not as the best runtime assertion strategy.
-
----
-
-## Metric Definitions
-
-The quantum-walk evaluation uses final measurement-support validity as a
-measurement-level proxy. A sampled final data state is support-valid if it
-belongs to the ideal noiseless final support.
-
-This is weaker than full state equivalence: two states can have the same
-measurement support while differing in amplitudes or phases.
-
-Confusion-matrix columns:
-
-- `TP`: assertion reports an error and final data state is outside support.
-- `TN`: assertion passes and final data state is inside support.
-- `FP`: assertion reports an error but final data state is inside support.
-- `FN`: assertion passes but final data state is outside support.
-- `Detection Rate`: `TP / (TP + FN)`.
-- `Support-Level FPR`: `FP / (FP + TN)`.
-- `Post-selected Support-Valid Rate`: `TN / (TN + FN)`.
-
-Static comparison metrics:
-
-- `Coverage`: monitored vanishing states divided by total basis states.
-- `Normalized Cost`: average of oracle-gate, added-depth, and added-CX ratios.
-- `Benefit-Cost Score`: `Coverage / Normalized Cost`.
-
-Coverage is static. Detection rate and false-positive rate come from noisy
-Monte Carlo evaluation.
-
----
-
-## Tests
+Use this check before relying on regenerated outputs:
 
 ```bash
 python3 -m unittest discover
+python3 -m py_compile src/*.py experiments/*.py help.py
 ```
 
-The tests cover assertion synthesis, oracle correctness, strategy selection,
-quantum-walk evaluation, and shared-trace reproducibility.
-
----
-
-## Scope and Limitations
-
-- The implementation uses state-vector simulation rather than a BDD backend.
-- Quantum-walk correctness is measured with final support validity, not full
-  quantum-state equivalence.
-- The current workflow focuses on single-point assertions.
-- Vanishing-state enhancement circuits (`Uv`) are not implemented.
-- ESOP-based synthesis from the original VanQiRA framework is approximated by
-  the current oracle synthesis methods.
-- Experiments use simulated Pauli noise rather than physical quantum hardware.
-- The Simon experiment is a measurement-level validation baseline.
-
-Possible extensions include state-fidelity evaluation, state-level TP/TN/FP/FN
-metrics, partial-coverage experiments, Pareto-frontier analysis, multiple
-assertion points, `Uv` circuits, BDD-based state representation, and device
-experiments.
-
----
-
-## Archive
-
-`archive/` contains old demos, disabled entrypoints, and legacy outputs kept
-for reference only. These files are not part of the current reproduction
-workflow.
-
-Archived experiment scripts:
+The full static scaling suite should produce:
 
 ```text
-archive/experiments/run_qwalk_baseline.py
-archive/experiments/run_qwalk_assertion.py
-archive/experiments/run_simon_baseline.py
-archive/experiments/run_simon_assertion.py
-archive/experiments/plot_simon_results.py
-archive/experiments/plot_checkpoint_tradeoff.py
-```
-
-Archived outputs:
-
-```text
-archive/results/qwalk_checkpoint_tradeoff.png
-archive/results/raw/qwalk_overhead.csv
+30 benchmark settings
+420 candidate rows
+336 successful candidates
+84 skipped large-minterm candidates
+180 strategy winners
 ```

@@ -12,6 +12,9 @@ from experiments.run_qwalk_strategy_evaluation import (
     parse_args,
     run_evaluation,
 )
+from experiments.run_qwalk_scaling_evaluation import (
+    output_path_for_run as scaling_output_path_for_run,
+)
 from src.assertion import (
     VanishingAssertionSpec,
     synthesize_minterm_oracle,
@@ -24,6 +27,16 @@ from src.evaluate import (
 )
 from src.quantum_walk import build_cycle_quantum_walk
 from src.optimizer import select_best_checkpoint
+from src.qwalk_scaling import (
+    DEFAULT_POSITION_QUBITS,
+    DEFAULT_STRATEGIES,
+    DEFAULT_WALK_STEPS,
+    benchmark_settings,
+    benchmark_suite_table,
+    pareto_frontier,
+    scan_scaling_candidates,
+    select_scaling_strategy_winners,
+)
 from src.utils import analyze_checkpoint, append_instruction_copy
 
 
@@ -221,6 +234,121 @@ class StrategySelectionTests(unittest.TestCase):
     def test_unknown_strategy_raises(self) -> None:
         with self.assertRaises(ValueError):
             select_best_checkpoint(self.results, strategy="unknown")
+
+
+class QWalkScalingSuiteTests(unittest.TestCase):
+    def test_benchmark_grid_matches_requested_suite(self) -> None:
+        settings = benchmark_settings()
+        suite = benchmark_suite_table()
+
+        self.assertEqual(
+            len(settings),
+            len(DEFAULT_POSITION_QUBITS) * len(DEFAULT_WALK_STEPS),
+        )
+        self.assertEqual(
+            sum(setting.steps for setting in settings),
+            len(DEFAULT_POSITION_QUBITS) * sum(DEFAULT_WALK_STEPS),
+        )
+        self.assertEqual(list(suite["position_qubits"]), list(DEFAULT_POSITION_QUBITS))
+        self.assertTrue(
+            (
+                suite["basis_states"]
+                == suite["total_qubits"].map(lambda qubits: 2**qubits)
+            ).all()
+        )
+
+    def test_scaling_candidates_include_required_metadata(self) -> None:
+        candidates = scan_scaling_candidates(
+            position_qubits=(2,),
+            walk_steps=(2,),
+            max_minterm_states=8,
+        )
+        required_columns = {
+            "position_qubits",
+            "total_qubits",
+            "basis_states",
+            "steps",
+            "checkpoint_step",
+            "num_vanishing_states",
+            "coverage",
+            "oracle_gate_count",
+            "oracle_cx_count",
+            "oracle_depth",
+            "asserted_depth_overhead",
+            "asserted_cx_overhead",
+            "normalized_cost",
+            "benefit_cost_score",
+            "status",
+        }
+
+        self.assertTrue(required_columns.issubset(candidates.columns))
+        self.assertEqual(len(candidates), 4)
+        self.assertTrue((candidates["basis_states"] == 8).all())
+        self.assertTrue((candidates["total_qubits"] == 3).all())
+        self.assertTrue((candidates["status"] == "ok").all())
+
+    def test_scaling_winners_select_one_row_per_strategy_per_setting(self) -> None:
+        candidates = scan_scaling_candidates(
+            position_qubits=(2,),
+            walk_steps=(2, 4),
+            max_minterm_states=8,
+        )
+        winners = select_scaling_strategy_winners(candidates)
+
+        grouped = winners.groupby(["position_qubits", "steps", "strategy"]).size()
+        self.assertTrue((grouped == 1).all())
+        self.assertEqual(
+            set(winners["strategy"]),
+            set(DEFAULT_STRATEGIES),
+        )
+        self.assertEqual(len(winners), 2 * len(DEFAULT_STRATEGIES))
+
+    def test_pareto_frontier_excludes_dominated_candidates(self) -> None:
+        frame = pd.DataFrame(
+            [
+                {"coverage": 0.5, "asserted_cx_overhead": 10, "status": "ok"},
+                {"coverage": 0.7, "asserted_cx_overhead": 8, "status": "ok"},
+                {"coverage": 0.7, "asserted_cx_overhead": 12, "status": "ok"},
+                {"coverage": 0.9, "asserted_cx_overhead": 20, "status": "ok"},
+                {"coverage": 1.0, "asserted_cx_overhead": 1, "status": "error"},
+            ]
+        )
+        frontier = pareto_frontier(frame)
+
+        self.assertNotIn(2, set(frontier.index))
+        self.assertNotIn(4, set(frontier.index))
+        for _, row in frontier.iterrows():
+            dominated = (
+                (frontier["coverage"] >= row["coverage"])
+                & (frontier["asserted_cx_overhead"] <= row["asserted_cx_overhead"])
+                & (
+                    (frontier["coverage"] > row["coverage"])
+                    | (
+                        frontier["asserted_cx_overhead"]
+                        < row["asserted_cx_overhead"]
+                    )
+                )
+            ).any()
+            self.assertFalse(dominated)
+
+    def test_scaling_output_path_is_probability_tagged(self) -> None:
+        primary_path = scaling_output_path_for_run(
+            error_probability=0.005,
+            include_oracle_noise=False,
+        )
+        oracle_noise_path = scaling_output_path_for_run(
+            error_probability=0.02,
+            include_oracle_noise=True,
+        )
+
+        self.assertEqual(
+            primary_path.name,
+            "qwalk_scaling_strategy_evaluation_p0_005.csv",
+        )
+        self.assertEqual(
+            oracle_noise_path.name,
+            "qwalk_scaling_strategy_evaluation_oracle_noise_p0_02.csv",
+        )
 
 
 class QWalkEvaluationTests(unittest.TestCase):
