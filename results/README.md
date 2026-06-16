@@ -18,7 +18,7 @@ Generated cache directories such as `results/.matplotlib/` and
 
 如果只想看正式結果，優先閱讀 `results/raw/` 裡的 CSV 與本層的 PNG 圖檔。
 
-## Fixed vs Scaling Outputs / 固定與變動條件
+## Fixed vs Scaling Outputs 
 
 The fixed quantum-walk outputs come from one circuit setting:
 `position_qubits=2`, one coin qubit, `total_qubits=3`, `basis_states=8`, and
