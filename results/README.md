@@ -20,6 +20,37 @@ Generated cache directories such as `results/.matplotlib/` and
 
 如果只想看正式結果，優先閱讀 `results/raw/` 裡的 CSV 與本層的 PNG 圖檔。
 
+## Fixed vs Scaling Outputs / 固定與變動條件
+
+The fixed quantum-walk outputs come from one circuit setting:
+`position_qubits=2`, one coin qubit, `total_qubits=3`, `basis_states=8`, and
+`steps=5`. In these files, different rows mainly compare checkpoint choice,
+oracle method, or selected strategy under the same quantum-walk size:
+
+```text
+raw/qwalk_results.csv
+raw/qwalk_strategy_comparison.csv
+raw/qwalk_strategy_winners.csv
+raw/qwalk_strategy_evaluation_p0_01.csv
+```
+
+The scaling outputs contain many circuit settings. Read them with
+`position_qubits`, `total_qubits`, `basis_states`, `steps`,
+`checkpoint_step`, `label`, `oracle_method`, and `status`:
+
+```text
+raw/qwalk_benchmark_suite.csv
+raw/qwalk_scaling_candidates.csv
+raw/qwalk_scaling_strategy_winners.csv
+```
+
+中文提示：比較不同 checkpoint 時，是在同一個 circuit setting 下改 assertion
+插入點；比較不同 `position_qubits` 或 `steps` 時，是換了 quantum walk 問題
+規模。`qwalk_scaling_candidates.csv` 的每一列代表一個
+`(position_qubits, steps, checkpoint, oracle_method)` candidate；
+`qwalk_scaling_strategy_winners.csv` 則是每個 `(position_qubits, steps)` 都各自
+選出 6 種策略。
+
 ## Main Report Results
 
 These files are used directly for the main report tables or conclusions.

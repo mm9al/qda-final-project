@@ -100,6 +100,53 @@ python3 -m experiments.run_qwalk_strategy_evaluation \
 The canonical workflow writes formal report outputs to `results/raw/` and
 figures to `results/`.
 
+## Quantum Walk Experiment Conditions / 實驗條件
+
+The formal single-setting quantum-walk experiment uses a fixed coined quantum
+walk on a cycle. This is the setting used by `qwalk_results.csv`,
+`qwalk_strategy_comparison.csv`, `qwalk_strategy_winners.csv`, and
+`qwalk_strategy_evaluation_p0_01.csv`.
+
+Fixed main experiment:
+
+- `position_qubits = 2`, plus one coin qubit, so `total_qubits = 3`.
+- `basis_states = 2 ** total_qubits = 8`.
+- `num_steps = 5`.
+- Candidate checkpoints are fixed after every walk step:
+  `after_walk_step_1` through `after_walk_step_5`.
+- Each checkpoint is analyzed for vanishing states; `coverage` is the fraction
+  of basis states that are vanishing at that checkpoint.
+- Oracle synthesis methods compared at each checkpoint are `minterm` and
+  `simplified_boolean`.
+- Static cost comparisons use basis gates `x, h, sx, rz, cx`, Qiskit transpile
+  `optimization_level=1`, and `seed_transpiler=2026`.
+- The formal noisy evaluation uses `error_probability=0.01`,
+  `num_trials=1000`, and `seed=2026`. All selected strategies share the same
+  Pauli-noise traces so their metrics are directly comparable.
+
+The scaling suite changes the quantum-walk size instead of using only the fixed
+main setting:
+
+- `position_qubits` varies over `2, 3, 4, 5, 6`.
+- `total_qubits = position_qubits + 1` because the circuit also has one coin
+  qubit.
+- `basis_states = 2 ** total_qubits`.
+- `steps` varies over `2, 4, 6, 8, 10, 12`.
+- For each `(position_qubits, steps)` setting, checkpoints are all walk-step
+  boundaries: `after_walk_step_1` through `after_walk_step_T`.
+- Each `(position_qubits, steps, checkpoint, oracle_method)` combination is one
+  candidate row in `qwalk_scaling_candidates.csv`.
+- For `minterm`, rows with more than `max_minterm_states=32` vanishing states
+  are kept but marked `status=skipped_too_many_minterms`.
+- `qwalk_scaling_strategy_winners.csv` selects six strategies for every
+  `(position_qubits, steps)` setting, not six strategies for the whole suite.
+
+中文簡要說明：固定主實驗是在同一個 quantum walk circuit
+(`position_qubits=2`, `steps=5`) 裡改 checkpoint 和 oracle method；scaling
+suite 則會改 quantum walk 的問題規模，也就是不同 `position_qubits` 和
+`steps`。因此比較 checkpoint 時，是同一規模下 assertion 插入點不同；比較
+position qubits 或 steps 時，則是不同 circuit size 的 scaling 分析。
+
 ## How to Read the Results / 結果怎麼看
 
 - Simon results: start with `baseline_success_rate`,
