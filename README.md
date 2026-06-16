@@ -23,7 +23,7 @@ extension 等輔助實驗結果則放在 `results/auxiliary/raw/`，不視為主
 若只想重跑專案，照著下方 **Setup** 和 **Canonical Reproduction Workflow**
 執行即可。各結果檔案的用途請看 `results/README.md`。
 
-## Quick Start / 快速重跑
+## Quick Start 
 
 最短流程是先建立 Python 環境，跑測試確認程式狀態，再依序產生正式結果：
 
