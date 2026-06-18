@@ -56,8 +56,8 @@ def synthesize_minterm_oracle(
     """Naively synthesize Ua from explicit vanishing states.
 
     This is a general but non-optimized synthesis method: for each vanishing
-    basis state, add one multi-controlled X.  It is useful for later extensions
-    beyond Simon.
+    basis state, add one multi-controlled X. It is useful as a general
+    reference implementation for checking simplified Boolean synthesis.
     """
 
     n = spec.num_asserted_qubits

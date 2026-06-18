@@ -1,0 +1,6 @@
+position_qubits,total_qubits,basis_states,steps_tested,checkpoints
+2,3,8,"2,4,6,8,10,12",all
+3,4,16,"2,4,6,8,10,12",all
+4,5,32,"2,4,6,8,10,12",all
+5,6,64,"2,4,6,8,10,12",all
+6,7,128,"2,4,6,8,10,12",all

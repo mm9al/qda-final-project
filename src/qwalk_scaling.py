@@ -22,7 +22,7 @@ from src.optimizer import (
 )
 from src.optimizer import _gate_count, _metric_overhead, _normalized_cost
 from src.quantum_walk import build_cycle_quantum_walk
-from src.utils import analyze_checkpoint
+from src.utils import analyze_checkpoint, fault_sensitivity_at_checkpoint
 
 
 DEFAULT_POSITION_QUBITS = (2, 3, 4, 5, 6)
@@ -31,11 +31,10 @@ DEFAULT_EVALUATION_POSITION_QUBITS = (2, 3, 4, 5)
 DEFAULT_EVALUATION_WALK_STEPS = (6, 8, 10)
 DEFAULT_NOISE_PROBABILITIES = (0.005, 0.01, 0.02)
 DEFAULT_STRATEGIES = (
-    "max_sparsity",
-    "min_oracle_cost",
-    "balanced_proxy",
-    "cost_benefit",
-    "early_checkpoint",
+    "min_cost",
+    "max_coverage",
+    "max_fault_sensitivity",
+    "best_detection_cost_proxy",
     "late_checkpoint",
 )
 
@@ -114,6 +113,13 @@ def _empty_candidate_row(
     coverage: float,
     sparsity: float,
     balanced_score: float,
+    fault_sensitive_detection: float,
+    bit_flip_detection: float,
+    phase_detection: float,
+    num_fault_locations: int,
+    baseline_depth: int,
+    baseline_cx_count: int,
+    baseline_gate_count: int,
     status: str,
     error_message: str = "",
 ) -> dict[str, int | float | str | None]:
@@ -132,6 +138,13 @@ def _empty_candidate_row(
         "coverage": coverage,
         "sparsity": sparsity,
         "balanced_score": balanced_score,
+        "fault_sensitive_detection": fault_sensitive_detection,
+        "bit_flip_detection": bit_flip_detection,
+        "phase_detection": phase_detection,
+        "num_fault_locations": num_fault_locations,
+        "baseline_depth": baseline_depth,
+        "baseline_cx_count": baseline_cx_count,
+        "baseline_gate_count": baseline_gate_count,
         "oracle_depth": None,
         "oracle_gate_count": None,
         "oracle_cx_count": None,
@@ -141,8 +154,10 @@ def _empty_candidate_row(
         "asserted_depth_overhead": None,
         "asserted_cx_overhead": None,
         "asserted_gate_overhead": None,
+        "normalized_cx_overhead": None,
         "normalized_cost": None,
         "benefit_cost_score": None,
+        "detection_cost_score": None,
         "runtime_seconds": None,
         "status": status,
         "error_message": error_message,
@@ -202,6 +217,11 @@ def scan_scaling_candidates(
                 - overhead_weight
                 * (num_vanishing_states / max(len(circuit.data), 1))
             )
+            fault_sensitivity = fault_sensitivity_at_checkpoint(
+                circuit=circuit,
+                checkpoint=checkpoint,
+                vanishing_states=tuple(analysis.vanishing_states),
+            )
             relative_position = checkpoint / len(circuit.data)
             spec = VanishingAssertionSpec(
                 num_asserted_qubits=circuit.num_qubits,
@@ -222,6 +242,15 @@ def scan_scaling_candidates(
                     coverage=coverage,
                     sparsity=analysis.sparsity,
                     balanced_score=balanced_score,
+                    fault_sensitive_detection=(
+                        fault_sensitivity.fault_sensitive_detection
+                    ),
+                    bit_flip_detection=fault_sensitivity.bit_flip_detection,
+                    phase_detection=fault_sensitivity.phase_detection,
+                    num_fault_locations=fault_sensitivity.num_fault_locations,
+                    baseline_depth=baseline_metrics["depth"],
+                    baseline_cx_count=baseline_metrics["cx_count"],
+                    baseline_gate_count=baseline_metrics["gate_count"],
                     status="ok",
                 )
 
@@ -255,6 +284,14 @@ def scan_scaling_candidates(
                         baseline_metrics=baseline_metrics,
                         asserted_metrics=asserted_metrics,
                     )
+                    asserted_cx_overhead = _metric_overhead(
+                        asserted_metrics=asserted_metrics,
+                        baseline_metrics=baseline_metrics,
+                        metric="cx_count",
+                    )
+                    normalized_cx_overhead = (
+                        asserted_cx_overhead / max(baseline_metrics["cx_count"], 1)
+                    )
 
                     row.update(
                         {
@@ -269,19 +306,20 @@ def scan_scaling_candidates(
                                 baseline_metrics=baseline_metrics,
                                 metric="depth",
                             ),
-                            "asserted_cx_overhead": _metric_overhead(
-                                asserted_metrics=asserted_metrics,
-                                baseline_metrics=baseline_metrics,
-                                metric="cx_count",
-                            ),
+                            "asserted_cx_overhead": asserted_cx_overhead,
                             "asserted_gate_overhead": _metric_overhead(
                                 asserted_metrics=asserted_metrics,
                                 baseline_metrics=baseline_metrics,
                                 metric="gate_count",
                             ),
+                            "normalized_cx_overhead": normalized_cx_overhead,
                             "normalized_cost": normalized_cost,
                             "benefit_cost_score": coverage
                             / max(normalized_cost, 1e-12),
+                            "detection_cost_score": (
+                                fault_sensitivity.fault_sensitive_detection
+                                / max(normalized_cost, 1e-12)
+                            ),
                             "runtime_seconds": perf_counter() - start_time,
                         }
                     )
@@ -502,8 +540,17 @@ def evaluate_scaling_strategy_winners(
                     "label": str(winner["label"]),
                     "oracle_method": oracle_method,
                     "coverage": float(winner["coverage"]),
+                    "fault_sensitive_detection": float(
+                        winner["fault_sensitive_detection"]
+                    ),
+                    "bit_flip_detection": float(winner["bit_flip_detection"]),
+                    "phase_detection": float(winner["phase_detection"]),
                     "oracle_gate_count": int(winner["oracle_gate_count"]),
                     "asserted_cx_overhead": int(winner["asserted_cx_overhead"]),
+                    "normalized_cx_overhead": float(
+                        winner["normalized_cx_overhead"]
+                    ),
+                    "normalized_cost": float(winner["normalized_cost"]),
                     **metrics,
                 }
             )

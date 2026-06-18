@@ -396,6 +396,52 @@ def select_best_checkpoint(
         index = valid_results["oracle_gate_count"].idxmin()
         return valid_results.loc[index]
 
+    if strategy == "min_cost":
+        cost_column = (
+            "asserted_cx_overhead"
+            if "asserted_cx_overhead" in valid_results.columns
+            else "oracle_gate_count"
+        )
+        index = valid_results[cost_column].idxmin()
+        return valid_results.loc[index]
+
+    if strategy == "max_coverage":
+        coverage_column = (
+            "coverage"
+            if "coverage" in valid_results.columns
+            else "sparsity"
+        )
+        checkpoint = valid_results.loc[
+            valid_results[coverage_column].idxmax(),
+            "checkpoint",
+        ]
+        return _pick_cheapest_method_at_checkpoint(
+            checkpoint_results=valid_results,
+            checkpoint=checkpoint,
+        )
+
+    if strategy == "max_fault_sensitivity":
+        if "fault_sensitive_detection" not in valid_results.columns:
+            raise ValueError(
+                "max_fault_sensitivity requires fault_sensitive_detection"
+            )
+        checkpoint = valid_results.loc[
+            valid_results["fault_sensitive_detection"].idxmax(),
+            "checkpoint",
+        ]
+        return _pick_cheapest_method_at_checkpoint(
+            checkpoint_results=valid_results,
+            checkpoint=checkpoint,
+        )
+
+    if strategy == "best_detection_cost_proxy":
+        if "detection_cost_score" not in valid_results.columns:
+            raise ValueError(
+                "best_detection_cost_proxy requires detection_cost_score"
+            )
+        index = valid_results["detection_cost_score"].idxmax()
+        return valid_results.loc[index]
+
     if strategy in {"balanced", "balanced_proxy"}:
         checkpoint = valid_results.loc[
             valid_results["balanced_score"].idxmax(),
@@ -410,13 +456,6 @@ def select_best_checkpoint(
         index = valid_results["benefit_cost_score"].idxmax()
         return valid_results.loc[index]
 
-    if strategy == "early_checkpoint":
-        checkpoint = valid_results["checkpoint"].min()
-        return _pick_cheapest_method_at_checkpoint(
-            checkpoint_results=valid_results,
-            checkpoint=checkpoint,
-        )
-
     if strategy == "late_checkpoint":
         checkpoint = valid_results["checkpoint"].max()
         return _pick_cheapest_method_at_checkpoint(
@@ -430,11 +469,10 @@ def select_best_checkpoint(
 def select_strategy_winners(
     checkpoint_results: pd.DataFrame,
     strategies: tuple[str, ...] = (
-        "max_sparsity",
-        "min_oracle_cost",
-        "balanced_proxy",
-        "cost_benefit",
-        "early_checkpoint",
+        "min_cost",
+        "max_coverage",
+        "max_fault_sensitivity",
+        "best_detection_cost_proxy",
         "late_checkpoint",
     ),
 ) -> pd.DataFrame:

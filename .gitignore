@@ -8,3 +8,4 @@ __pycache__/
 results/raw/*.tmp
 results/.matplotlib/
 results/.cache/
+unused/generated_cache/

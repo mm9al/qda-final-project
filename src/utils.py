@@ -12,6 +12,16 @@ class StateAnalysis:
     sparsity: float
 
 
+@dataclass(frozen=True)
+class FaultSensitivity:
+    """Single-checkpoint Pauli-fault sensitivity against vanishing states."""
+
+    fault_sensitive_detection: float
+    bit_flip_detection: float
+    phase_detection: float
+    num_fault_locations: int
+
+
 def basis_index_to_qubit_order_state(index: int, num_qubits: int) -> str:
     """Return a basis-state label in q[0], q[1], ... order."""
     if index < 0:
@@ -23,6 +33,18 @@ def basis_index_to_qubit_order_state(index: int, num_qubits: int) -> str:
         "1" if index & (1 << qubit) else "0"
         for qubit in range(num_qubits)
     )
+
+
+def qubit_order_state_to_basis_index(state: str) -> int:
+    """Convert a q[0], q[1], ... basis label into Qiskit's basis index."""
+    if any(bit not in {"0", "1"} for bit in state):
+        raise ValueError(f"invalid basis state: {state}")
+
+    index = 0
+    for qubit, bit in enumerate(state):
+        if bit == "1":
+            index |= 1 << qubit
+    return index
 
 
 def append_instruction_copy(
@@ -125,4 +147,72 @@ def analyze_checkpoint(
     return analyze_statevector(
         statevector=statevector,
         tolerance=tolerance,
+    )
+
+
+def fault_sensitivity_at_checkpoint(
+    circuit: QuantumCircuit,
+    checkpoint: int,
+    vanishing_states: list[str] | tuple[str, ...] | None = None,
+    tolerance: float = 1e-10,
+) -> FaultSensitivity:
+    """Average assertion-detection probability for single-qubit Pauli faults.
+
+    The score is the checkpoint-local proxy
+
+        avg_{q, P in {X,Y,Z}} || Pi_V P_q |psi_t> ||^2,
+
+    where V is the vanishing subspace at the checkpoint. X and Y have the same
+    computational-basis probabilities here; Z only changes phases, so it is
+    included explicitly to keep the metric aligned with a Pauli fault model.
+    """
+
+    if checkpoint < 0 or checkpoint > len(circuit.data):
+        raise ValueError("Invalid checkpoint.")
+
+    prefix = build_prefix_circuit(
+        circuit=circuit,
+        num_instructions=checkpoint,
+    )
+    statevector = Statevector.from_instruction(prefix)
+
+    if vanishing_states is None:
+        analysis = analyze_statevector(
+            statevector=statevector,
+            tolerance=tolerance,
+        )
+        vanishing_states = analysis.vanishing_states
+
+    vanishing_indices = {
+        qubit_order_state_to_basis_index(state)
+        for state in vanishing_states
+    }
+    probabilities = np.abs(statevector.data) ** 2
+
+    bit_flip_total = 0.0
+    phase_total = 0.0
+    for qubit in range(circuit.num_qubits):
+        mask = 1 << qubit
+        bit_flip_total += sum(
+            probability
+            for index, probability in enumerate(probabilities)
+            if (index ^ mask) in vanishing_indices
+        )
+        phase_total += sum(
+            probability
+            for index, probability in enumerate(probabilities)
+            if index in vanishing_indices
+        )
+
+    bit_flip_detection = bit_flip_total / max(circuit.num_qubits, 1)
+    phase_detection = phase_total / max(circuit.num_qubits, 1)
+    fault_sensitive_detection = (
+        2.0 * bit_flip_total + phase_total
+    ) / max(3 * circuit.num_qubits, 1)
+
+    return FaultSensitivity(
+        fault_sensitive_detection=float(fault_sensitive_detection),
+        bit_flip_detection=float(bit_flip_detection),
+        phase_detection=float(phase_detection),
+        num_fault_locations=3 * circuit.num_qubits,
     )

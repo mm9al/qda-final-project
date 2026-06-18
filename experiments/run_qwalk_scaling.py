@@ -80,6 +80,95 @@ def write_vanishing_ratio_plot(candidates: pd.DataFrame) -> Path:
     return output_path
 
 
+def write_vanishing_support_heatmap(candidates: pd.DataFrame) -> Path:
+    output_path = RESULTS_DIR / "qwalk_vanishing_support_heatmap.png"
+    unique_checkpoints = candidates.drop_duplicates(
+        subset=["position_qubits", "steps", "checkpoint_step"],
+        keep="first",
+    )
+    landscape = (
+        unique_checkpoints.groupby(["position_qubits", "checkpoint_step"])["coverage"]
+        .mean()
+        .reset_index()
+    )
+    heatmap = landscape.pivot(
+        index="position_qubits",
+        columns="checkpoint_step",
+        values="coverage",
+    ).sort_index()
+
+    fig_width = max(7.5, 0.58 * len(heatmap.columns) + 2.5)
+    fig_height = max(4.2, 0.5 * len(heatmap.index) + 2.2)
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+    image = ax.imshow(
+        heatmap.to_numpy(),
+        aspect="auto",
+        cmap="viridis",
+        vmin=0,
+        vmax=1,
+    )
+
+    ax.set_xticks(range(len(heatmap.columns)))
+    ax.set_xticklabels([str(column) for column in heatmap.columns])
+    ax.set_yticks(range(len(heatmap.index)))
+    ax.set_yticklabels([f"p={index}" for index in heatmap.index])
+    ax.set_xlabel("Checkpoint step")
+    ax.set_ylabel("Position qubits")
+    ax.set_title("Vanishing-support landscape across checkpoints")
+
+    for row_index, position_qubits in enumerate(heatmap.index):
+        for column_index, checkpoint_step in enumerate(heatmap.columns):
+            value = heatmap.loc[position_qubits, checkpoint_step]
+            if pd.notna(value):
+                text_color = "white" if value < 0.55 else "#111827"
+                ax.text(
+                    column_index,
+                    row_index,
+                    f"{value:.2f}",
+                    ha="center",
+                    va="center",
+                    fontsize=8,
+                    color=text_color,
+                )
+
+    colorbar = fig.colorbar(image, ax=ax)
+    colorbar.set_label("Average vanishing-state ratio")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=200)
+    plt.close(fig)
+    return output_path
+
+
+def checkpoint_landscape_table(candidates: pd.DataFrame) -> pd.DataFrame:
+    unique_checkpoints = candidates.drop_duplicates(
+        subset=["position_qubits", "steps", "checkpoint_step"],
+        keep="first",
+    )
+    table = unique_checkpoints[
+        [
+            "position_qubits",
+            "total_qubits",
+            "basis_states",
+            "steps",
+            "checkpoint_step",
+            "checkpoint",
+            "label",
+            "coverage",
+            "num_vanishing_states",
+            "fault_sensitive_detection",
+            "bit_flip_detection",
+            "phase_detection",
+        ]
+    ].copy()
+    table["active_support_size"] = (
+        table["basis_states"] - table["num_vanishing_states"]
+    )
+    return table.sort_values(
+        ["position_qubits", "steps", "checkpoint_step"],
+        ignore_index=True,
+    )
+
+
 def write_cost_coverage_plot(candidates: pd.DataFrame) -> Path:
     output_path = RESULTS_DIR / "qwalk_oracle_cost_vs_coverage.png"
     ok = candidates[candidates["status"] == "ok"].dropna(
@@ -121,6 +210,40 @@ def write_cost_coverage_plot(candidates: pd.DataFrame) -> Path:
     return output_path
 
 
+def write_coverage_fault_sensitivity_plot(candidates: pd.DataFrame) -> Path:
+    output_path = RESULTS_DIR / "qwalk_coverage_vs_fault_sensitivity.png"
+    ok = candidates[candidates["status"] == "ok"].dropna(
+        subset=["coverage", "fault_sensitive_detection"]
+    )
+    unique_checkpoints = ok.drop_duplicates(
+        subset=["position_qubits", "steps", "checkpoint"],
+        keep="first",
+    )
+
+    fig, ax = plt.subplots(figsize=(8.2, 5.2))
+    for position_qubits, group in unique_checkpoints.groupby("position_qubits"):
+        ax.scatter(
+            group["coverage"],
+            group["fault_sensitive_detection"],
+            s=46,
+            alpha=0.78,
+            label=f"p={position_qubits}",
+        )
+
+    ax.plot([0, 1], [0, 1], color="#6b7280", linewidth=1, linestyle="--", alpha=0.6)
+    ax.set_xlabel("Coverage / vanishing-state ratio")
+    ax.set_ylabel("Fault-sensitive detection proxy")
+    ax.set_title("Static coverage versus Pauli-fault-sensitive coverage")
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_ylim(-0.02, 1.02)
+    ax.grid(True, alpha=0.3)
+    ax.legend(title="Position qubits", loc="best")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=200)
+    plt.close(fig)
+    return output_path
+
+
 def write_strategy_ranking_plot(
     winners: pd.DataFrame,
     evaluation: pd.DataFrame | None = None,
@@ -130,6 +253,7 @@ def write_strategy_ranking_plot(
         winners.groupby("strategy")
         .agg(
             avg_coverage=("coverage", "mean"),
+            avg_fault_sensitive_detection=("fault_sensitive_detection", "mean"),
             avg_added_cx=("asserted_cx_overhead", "mean"),
         )
         .reset_index()
@@ -147,6 +271,7 @@ def write_strategy_ranking_plot(
         summary = static_summary.merge(eval_summary, on="strategy", how="left")
         metrics = [
             ("avg_coverage", "Average coverage"),
+            ("avg_fault_sensitive_detection", "Average fault-sensitive proxy"),
             ("avg_added_cx", "Average added CX"),
             ("avg_detection", "Average detection rate"),
             ("avg_fpr", "Average FPR"),
@@ -155,15 +280,19 @@ def write_strategy_ranking_plot(
         summary = static_summary
         metrics = [
             ("avg_coverage", "Average coverage"),
+            ("avg_fault_sensitive_detection", "Average fault-sensitive proxy"),
             ("avg_added_cx", "Average added CX"),
         ]
 
     label_map = {
         "balanced_proxy": "balanced",
+        "best_detection_cost_proxy": "detection/cost",
         "cost_benefit": "cost/benefit",
-        "early_checkpoint": "early",
         "late_checkpoint": "late",
+        "max_coverage": "max coverage",
+        "max_fault_sensitivity": "max fault proxy",
         "max_sparsity": "max sparsity",
+        "min_cost": "min cost",
         "min_oracle_cost": "min oracle",
     }
     summary = summary.copy()
@@ -249,12 +378,16 @@ def main() -> None:
     suite_path = RAW_DIR / "qwalk_benchmark_suite.csv"
     candidates_path = RAW_DIR / "qwalk_scaling_candidates.csv"
     winners_path = RAW_DIR / "qwalk_scaling_strategy_winners.csv"
+    landscape_path = RAW_DIR / "qwalk_checkpoint_landscape.csv"
     suite.to_csv(suite_path, index=False)
     candidates.to_csv(candidates_path, index=False)
     winners.to_csv(winners_path, index=False)
+    checkpoint_landscape_table(candidates).to_csv(landscape_path, index=False)
 
     figure_paths = [
+        write_vanishing_support_heatmap(candidates),
         write_vanishing_ratio_plot(candidates),
+        write_coverage_fault_sensitivity_plot(candidates),
         write_cost_coverage_plot(candidates),
         write_strategy_ranking_plot(winners),
     ]
@@ -269,6 +402,7 @@ def main() -> None:
     print(f"Wrote {suite_path}")
     print(f"Wrote {candidates_path}")
     print(f"Wrote {winners_path}")
+    print(f"Wrote {landscape_path}")
     for figure_path in figure_paths:
         print(f"Wrote {figure_path}")
 

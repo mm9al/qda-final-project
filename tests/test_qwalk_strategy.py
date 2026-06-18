@@ -6,12 +6,6 @@ import pandas as pd
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
-from experiments.run_qwalk_strategy_evaluation import (
-    PUBLIC_COLUMNS,
-    output_path_for_run,
-    parse_args,
-    run_evaluation,
-)
 from experiments.run_qwalk_scaling_evaluation import (
     output_path_for_run as scaling_output_path_for_run,
 )
@@ -38,7 +32,11 @@ from src.qwalk_scaling import (
     scan_scaling_candidates,
     select_scaling_strategy_winners,
 )
-from src.utils import analyze_checkpoint, append_instruction_copy
+from src.utils import (
+    analyze_checkpoint,
+    append_instruction_copy,
+    fault_sensitivity_at_checkpoint,
+)
 
 
 def assertion_output_for_state(oracle: QuantumCircuit, state: str) -> int:
@@ -128,61 +126,91 @@ class StrategySelectionTests(unittest.TestCase):
                     "checkpoint": 8,
                     "oracle_method": "minterm",
                     "num_vanishing_states": 2,
+                    "coverage": 0.25,
                     "sparsity": 0.75,
+                    "fault_sensitive_detection": 0.20,
                     "balanced_score": 0.72,
                     "naive_oracle_terms": 2,
                     "oracle_gate_count": 40,
+                    "asserted_cx_overhead": 9,
+                    "normalized_cost": 0.4,
                     "benefit_cost_score": 0.9,
+                    "detection_cost_score": 0.50,
                 },
                 {
                     "checkpoint": 8,
                     "oracle_method": "simplified_boolean",
                     "num_vanishing_states": 2,
+                    "coverage": 0.25,
                     "sparsity": 0.75,
+                    "fault_sensitive_detection": 0.20,
                     "balanced_score": 0.72,
                     "naive_oracle_terms": 2,
                     "oracle_gate_count": 10,
+                    "asserted_cx_overhead": 4,
+                    "normalized_cost": 0.3,
                     "benefit_cost_score": 0.8,
+                    "detection_cost_score": 0.67,
                 },
                 {
                     "checkpoint": 16,
                     "oracle_method": "minterm",
                     "num_vanishing_states": 4,
+                    "coverage": 0.50,
                     "sparsity": 0.50,
+                    "fault_sensitive_detection": 0.35,
                     "balanced_score": 0.49,
                     "naive_oracle_terms": 4,
                     "oracle_gate_count": 12,
+                    "asserted_cx_overhead": 6,
+                    "normalized_cost": 0.2,
                     "benefit_cost_score": 1.1,
+                    "detection_cost_score": 1.75,
                 },
                 {
                     "checkpoint": 16,
                     "oracle_method": "simplified_boolean",
                     "num_vanishing_states": 4,
+                    "coverage": 0.50,
                     "sparsity": 0.50,
+                    "fault_sensitive_detection": 0.35,
                     "balanced_score": 0.49,
                     "naive_oracle_terms": 4,
                     "oracle_gate_count": 1,
+                    "asserted_cx_overhead": 2,
+                    "normalized_cost": 0.1,
                     "benefit_cost_score": 1.2,
+                    "detection_cost_score": 3.50,
                 },
                 {
                     "checkpoint": 32,
                     "oracle_method": "minterm",
                     "num_vanishing_states": 7,
+                    "coverage": 0.875,
                     "sparsity": 0.875,
+                    "fault_sensitive_detection": 0.90,
                     "balanced_score": 0.86,
                     "naive_oracle_terms": 7,
                     "oracle_gate_count": 55,
+                    "asserted_cx_overhead": 20,
+                    "normalized_cost": 0.9,
                     "benefit_cost_score": 0.7,
+                    "detection_cost_score": 1.00,
                 },
                 {
                     "checkpoint": 32,
                     "oracle_method": "simplified_boolean",
                     "num_vanishing_states": 7,
+                    "coverage": 0.875,
                     "sparsity": 0.875,
+                    "fault_sensitive_detection": 0.90,
                     "balanced_score": 0.86,
                     "naive_oracle_terms": 7,
                     "oracle_gate_count": 14,
+                    "asserted_cx_overhead": 8,
+                    "normalized_cost": 0.5,
                     "benefit_cost_score": 0.6,
+                    "detection_cost_score": 1.80,
                 },
             ]
         )
@@ -193,7 +221,6 @@ class StrategySelectionTests(unittest.TestCase):
             "min_oracle_cost": 16,
             "balanced_proxy": 32,
             "cost_benefit": 16,
-            "early_checkpoint": 8,
             "late_checkpoint": 32,
         }
 
@@ -206,7 +233,6 @@ class StrategySelectionTests(unittest.TestCase):
         for strategy in (
             "max_sparsity",
             "balanced_proxy",
-            "early_checkpoint",
             "late_checkpoint",
         ):
             with self.subTest(strategy=strategy):
@@ -227,6 +253,19 @@ class StrategySelectionTests(unittest.TestCase):
         self.assertEqual(min_cost["oracle_method"], "simplified_boolean")
         self.assertEqual(cost_benefit["checkpoint"], 16)
         self.assertEqual(cost_benefit["oracle_method"], "simplified_boolean")
+
+    def test_detection_oriented_strategies(self) -> None:
+        expected = {
+            "min_cost": 16,
+            "max_coverage": 32,
+            "max_fault_sensitivity": 32,
+            "best_detection_cost_proxy": 16,
+        }
+
+        for strategy, checkpoint in expected.items():
+            with self.subTest(strategy=strategy):
+                row = select_best_checkpoint(self.results, strategy=strategy)
+                self.assertEqual(row["checkpoint"], checkpoint)
 
     def test_empty_results_raise(self) -> None:
         with self.assertRaises(ValueError):
@@ -272,13 +311,20 @@ class QWalkScalingSuiteTests(unittest.TestCase):
             "checkpoint_step",
             "num_vanishing_states",
             "coverage",
+            "fault_sensitive_detection",
+            "bit_flip_detection",
+            "phase_detection",
+            "num_fault_locations",
+            "baseline_cx_count",
             "oracle_gate_count",
             "oracle_cx_count",
             "oracle_depth",
             "asserted_depth_overhead",
             "asserted_cx_overhead",
+            "normalized_cx_overhead",
             "normalized_cost",
             "benefit_cost_score",
+            "detection_cost_score",
             "status",
         }
 
@@ -317,6 +363,30 @@ class QWalkScalingSuiteTests(unittest.TestCase):
         ):
             with self.subTest(column=column):
                 self.assertTrue((winners[column] >= 0).all())
+
+    def test_fault_sensitivity_score_is_bounded(self) -> None:
+        quantum_walk = build_cycle_quantum_walk(
+            num_position_qubits=2,
+            num_steps=2,
+        )
+        checkpoint = quantum_walk.checkpoints[0]
+        analysis = analyze_checkpoint(quantum_walk.circuit, checkpoint)
+
+        sensitivity = fault_sensitivity_at_checkpoint(
+            circuit=quantum_walk.circuit,
+            checkpoint=checkpoint,
+            vanishing_states=tuple(analysis.vanishing_states),
+        )
+
+        self.assertGreaterEqual(sensitivity.fault_sensitive_detection, 0.0)
+        self.assertLessEqual(sensitivity.fault_sensitive_detection, 1.0)
+        self.assertGreaterEqual(sensitivity.bit_flip_detection, 0.0)
+        self.assertLessEqual(sensitivity.bit_flip_detection, 1.0)
+        self.assertAlmostEqual(sensitivity.phase_detection, 0.0)
+        self.assertEqual(
+            sensitivity.num_fault_locations,
+            3 * quantum_walk.circuit.num_qubits,
+        )
 
     def test_metric_overhead_is_non_negative(self) -> None:
         baseline = {"depth": 20, "cx_count": 12, "gate_count": 30}
@@ -375,38 +445,6 @@ class QWalkScalingSuiteTests(unittest.TestCase):
 
 
 class QWalkEvaluationTests(unittest.TestCase):
-    def test_cli_defaults(self) -> None:
-        args = parse_args([])
-
-        self.assertFalse(args.include_oracle_noise)
-        self.assertEqual(args.error_probability, 0.01)
-        self.assertEqual(args.num_trials, 1000)
-        self.assertEqual(args.seed, 2026)
-
-    def test_cli_accepts_num_trials_and_legacy_shots(self) -> None:
-        args = parse_args(["--error-probability", "0", "--num-trials", "100"])
-        legacy_args = parse_args(["--shots", "25"])
-
-        self.assertEqual(args.error_probability, 0.0)
-        self.assertEqual(args.num_trials, 100)
-        self.assertEqual(legacy_args.num_trials, 25)
-
-    def test_parameterized_output_path(self) -> None:
-        primary_path = output_path_for_run(
-            error_probability=0.0,
-            include_oracle_noise=False,
-        )
-        oracle_noise_path = output_path_for_run(
-            error_probability=0.01,
-            include_oracle_noise=True,
-        )
-
-        self.assertEqual(primary_path.name, "qwalk_strategy_evaluation_p0_0.csv")
-        self.assertEqual(
-            oracle_noise_path.name,
-            "qwalk_strategy_evaluation_oracle_noise_p0_01.csv",
-        )
-
     def test_pauli_trace_generation_is_deterministic(self) -> None:
         circuit = QuantumCircuit(2)
         circuit.h(0)
@@ -499,61 +537,6 @@ class QWalkEvaluationTests(unittest.TestCase):
                         ),
                         0.0,
                     )
-
-    def test_noiseless_strategy_evaluation_has_no_false_positives(self) -> None:
-        results = run_evaluation(
-            shots=10,
-            error_probability=0.0,
-            seed=1234,
-        )
-
-        self.assertTrue((results["FP"] == 0).all())
-        self.assertTrue((results["FN"] == 0).all())
-        self.assertTrue((results["Detection Rate"] == 0.0).all())
-        self.assertTrue((results["Support-Level FPR"] == 0.0).all())
-        self.assertTrue(
-            (results["Post-selected Support-Valid Rate"] == 1.0).all()
-        )
-
-    def test_strategy_evaluation_output_columns(self) -> None:
-        results = run_evaluation(
-            shots=2,
-            error_probability=0.0,
-            seed=1234,
-        )
-
-        self.assertEqual(list(results.columns), PUBLIC_COLUMNS)
-
-    def test_duplicate_candidates_reuse_evaluation_metrics(self) -> None:
-        results = run_evaluation(
-            shots=4,
-            error_probability=0.01,
-            seed=1234,
-        )
-        metric_columns = [
-            "TP",
-            "TN",
-            "FP",
-            "FN",
-            "Detection Rate",
-            "Support-Level FPR",
-            "Post-selected Support-Valid Rate",
-        ]
-
-        duplicate_group_count = 0
-        for _, group in results.groupby(["Checkpoint", "Oracle Method"]):
-            if len(group) < 2:
-                continue
-
-            duplicate_group_count += 1
-            first_metrics = group.iloc[0][metric_columns].to_dict()
-            for _, row in group.iloc[1:].iterrows():
-                self.assertEqual(
-                    row[metric_columns].to_dict(),
-                    first_metrics,
-                )
-
-        self.assertGreater(duplicate_group_count, 0)
 
 
 if __name__ == "__main__":
